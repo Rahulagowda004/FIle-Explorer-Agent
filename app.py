@@ -13,24 +13,34 @@ from langgraph.prebuilt import create_react_agent
 # Load environment variables
 load_dotenv()
 
-st.title("💬 MCP File Handler Chatbot")
-st.caption("🚀 A Streamlit chatbot powered by Azure OpenAI with MCP file handling tools")
+# Page config
+st.set_page_config(
+    page_title="File Handler Assistant",
+    page_icon="📁",
+    layout="wide"
+)
+
+st.title("📁 File Handler Assistant")
+st.caption("🤖 Powered by Azure OpenAI • File operations made simple")
 
 # Sidebar with information
 with st.sidebar:
-    st.header("Available Tools")
-    st.write("This chatbot has access to the following file operations:")
-    st.write("• **List files** - List files in a directory")
-    st.write("• **Read file** - Read the content of a file")
-    st.write("• **Remove file** - Delete a file from the filesystem")
-    st.write("")
-    st.write("**Example commands:**")
-    st.write("- 'List files in the current directory'")
-    st.write("- 'Read the content of app.py'")
-    st.write("- 'Show me what files are in the servers folder'")
+    st.header("🛠️ Available Tools")
+    
+    st.info("📋 **List Files** - Browse directory contents")
+    st.info("📖 **Read Files** - View file contents") 
+    st.info("🗑️ **Remove Files** - Delete files safely")
+    
+    st.header("💡 Example Commands")
+    
+    st.code("List files in current directory")
+    st.code("Read the content of app.py")
+    st.code("Show files in servers folder")
+    
     st.divider()
-    st.write("Configuration loaded from .env file")
-    st.success("✅ Azure OpenAI configured")
+    
+    st.success("✅ Azure OpenAI Connected")
+    st.success("✅ MCP Server Ready")
 
 # Initialize Azure OpenAI client and MCP tools
 @st.cache_resource
@@ -86,29 +96,44 @@ async def get_agent_response(user_input, llm, server_params, checkpointer):
 llm, server_params, checkpointer = initialize_agent()
 
 if llm is None:
-    st.error("Failed to initialize the Azure OpenAI client. Please check your .env file configuration.")
+    st.error("🚨 Failed to initialize Azure OpenAI. Please check your .env configuration.")
     st.stop()
+
+# Initialize chat messages
 if "messages" not in st.session_state:
-    st.session_state["messages"] = [{"role": "assistant", "content": "Hello! I'm a file handler chatbot. I can help you with file operations like reading, listing, and removing files. What would you like to do?"}]
+    st.session_state["messages"] = [
+        {
+            "role": "assistant", 
+            "content": "👋 Hello! I'm your file handler assistant. I can help you list, read, and manage files. What would you like to do?"
+        }
+    ]
 
+# Display chat messages with better styling
 for msg in st.session_state.messages:
-    st.chat_message(msg["role"]).write(msg["content"])
+    with st.chat_message(msg["role"]):
+        st.write(msg["content"])
 
-if prompt := st.chat_input():
+# Chat input and response handling
+if prompt := st.chat_input("Ask me to help with your files..."):
     # Add user message to chat history
     st.session_state.messages.append({"role": "user", "content": prompt})
-    st.chat_message("user").write(prompt)
+    with st.chat_message("user"):
+        st.write(prompt)
     
     # Get response from MCP agent
-    with st.spinner("Processing your request..."):
-        try:
-            # Run the async function
-            response = asyncio.run(get_agent_response(prompt, llm, server_params, checkpointer))
-            
-            # Add assistant response to chat history
-            st.session_state.messages.append({"role": "assistant", "content": response})
-            st.chat_message("assistant").write(response)
-        except Exception as e:
-            error_msg = f"Sorry, I encountered an error: {str(e)}"
-            st.session_state.messages.append({"role": "assistant", "content": error_msg})
-            st.chat_message("assistant").write(error_msg)
+    with st.chat_message("assistant"):
+        with st.spinner("Processing your request..."):
+            try:
+                # Run the async function
+                response = asyncio.run(get_agent_response(prompt, llm, server_params, checkpointer))
+                
+                # Display response
+                st.write(response)
+                
+                # Add assistant response to chat history
+                st.session_state.messages.append({"role": "assistant", "content": response})
+                
+            except Exception as e:
+                error_msg = f"Sorry, I encountered an error: {str(e)}"
+                st.error(error_msg)
+                st.session_state.messages.append({"role": "assistant", "content": error_msg})
