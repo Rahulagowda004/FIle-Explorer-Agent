@@ -686,5 +686,448 @@ def append_timestamp(file_path: str, message: str = "") -> FileWriterOutput:
     except Exception as e:
         return FileWriterOutput(success=False, message=f"Error appending timestamp: {str(e)}")
 
+class DriveSearchOutput(BaseModel):
+    success: bool
+    message: str
+    found_items: list[dict] = []
+    total_count: int = 0
+    search_type: str = "both"  # "files", "folders", "both"
+    search_path: Optional[str] = None
+
+@mcp.tool(name="quick_search", description="Fast search in common user directories (Documents, Desktop, Downloads, etc.)")
+def quick_search(
+    search_pattern: str,
+    search_type: str = "both",
+    max_results: int = 30
+) -> DriveSearchOutput:
+    """
+    Quick search in common user directories for faster results.
+    Args:
+        search_pattern (str): Pattern to search for
+        search_type (str): "files", "folders", or "both" (default: "both")
+        max_results (int): Maximum results (default: 30)
+    """
+    import fnmatch
+    import time
+    try:
+        start_time = time.time()
+        
+        # Common user directories
+        user_home = os.path.expanduser("~")
+        search_paths = [
+            os.path.join(user_home, "Documents"),
+            os.path.join(user_home, "Desktop"), 
+            os.path.join(user_home, "Downloads"),
+            os.path.join(user_home, "Pictures"),
+            os.path.join(user_home, "Videos"),
+            "C:\\Users\\Public",
+            "C:\\temp",
+            "C:\\tmp"
+        ]
+        
+        # Add current working directory
+        search_paths.append(os.getcwd())
+        
+        found_items = []
+        count = 0
+        pattern = search_pattern.lower()
+        
+        for search_path in search_paths:
+            if not os.path.exists(search_path):
+                continue
+                
+            if count >= max_results:
+                break
+                
+            try:
+                # Search only 2 levels deep for speed
+                for root, dirs, files in os.walk(search_path):
+                    depth = root.replace(search_path, '').count(os.sep)
+                    if depth >= 2:
+                        dirs.clear()
+                        continue
+                        
+                    if count >= max_results:
+                        break
+                    
+                    # Skip hidden and system directories
+                    dirs[:] = [d for d in dirs if not d.startswith('.') and d not in {'__pycache__', 'node_modules'}]
+                    
+                    # Search folders
+                    if search_type in ["folders", "both"]:
+                        for dir_name in dirs:
+                            if count >= max_results:
+                                break
+                            if pattern in dir_name.lower() or fnmatch.fnmatch(dir_name.lower(), pattern):
+                                full_path = os.path.join(root, dir_name)
+                                found_items.append({
+                                    "name": dir_name,
+                                    "type": "folder", 
+                                    "path": full_path,
+                                    "parent_directory": root
+                                })
+                                count += 1
+                    
+                    # Search files (limit to 50 per directory)
+                    if search_type in ["files", "both"]:
+                        for file_name in files[:50]:
+                            if count >= max_results:
+                                break
+                            if pattern in file_name.lower() or fnmatch.fnmatch(file_name.lower(), pattern):
+                                full_path = os.path.join(root, file_name)
+                                try:
+                                    file_size = os.path.getsize(full_path)
+                                    found_items.append({
+                                        "name": file_name,
+                                        "type": "file",
+                                        "path": full_path,
+                                        "parent_directory": root,
+                                        "size_bytes": file_size
+                                    })
+                                    count += 1
+                                except (OSError, PermissionError):
+                                    continue
+                                    
+            except (PermissionError, OSError):
+                continue
+        
+        elapsed_time = round(time.time() - start_time, 2)
+        
+        if found_items:
+            message = f"Quick search found {count} items in {elapsed_time}s"
+        else:
+            message = f"No items found in common directories ({elapsed_time}s)"
+        
+        return DriveSearchOutput(
+            success=True,
+            message=message,
+            found_items=found_items,
+            total_count=count,
+            search_type=search_type,
+            search_path="Common user directories"
+        )
+        
+    except Exception as e:
+        return DriveSearchOutput(
+            success=False,
+            message=f"Error in quick search: {str(e)}"
+        )
+
+@mcp.tool(name="search_drive", description="Search for files and/or folders across entire drive or specified path with pattern matching.")
+def search_drive(
+    search_pattern: str, 
+    search_path: str = "C:\\", 
+    search_type: str = "both", 
+    max_results: int = 50,
+    case_sensitive: bool = False,
+    max_depth: int = 3
+) -> DriveSearchOutput:
+    """
+    Search for files and/or folders across the entire drive or specified path.
+    Args:
+        search_pattern (str): Pattern to search for (e.g., "*.txt", "config", "*report*")
+        search_path (str): Root path to start search from (default: "C:\\")
+        search_type (str): What to search for - "files", "folders", or "both" (default: "both")
+        max_results (int): Maximum number of results to return (default: 50)
+        case_sensitive (bool): Whether search should be case sensitive (default: False)
+        max_depth (int): Maximum directory depth to search (default: 3 for speed)
+    """
+    import fnmatch
+    import time
+    try:
+        search_path = os.path.abspath(search_path)
+        if not os.path.exists(search_path):
+            return DriveSearchOutput(
+                success=False, 
+                message=f"Search path '{search_path}' does not exist"
+            )
+        
+        found_items = []
+        count = 0
+        start_time = time.time()
+        timeout = 10.0  # 10 second timeout
+        
+        # Convert pattern for case insensitive search
+        pattern = search_pattern if case_sensitive else search_pattern.lower()
+        
+        def should_include_item(item_name, item_path, is_directory):
+            """Check if item matches search criteria"""
+            if search_type == "files" and is_directory:
+                return False
+            if search_type == "folders" and not is_directory:
+                return False
+            
+            # Apply case sensitivity
+            check_name = item_name if case_sensitive else item_name.lower()
+            
+            # Check if pattern matches
+            return fnmatch.fnmatch(check_name, pattern) or pattern in check_name
+        
+        # Skip common system directories that are slow and not useful
+        skip_dirs = {
+            'System Volume Information', '$Recycle.Bin', 'Windows', 'Program Files', 
+            'Program Files (x86)', 'AppData', 'ProgramData', 'Recovery', 'pagefile.sys',
+            'hiberfil.sys', 'swapfile.sys', '.git', 'node_modules', '__pycache__'
+        }
+        
+        # Walk through directory tree with depth limit
+        for root, dirs, files in os.walk(search_path):
+            # Check timeout
+            if time.time() - start_time > timeout:
+                break
+                
+            if count >= max_results:
+                break
+            
+            # Calculate current depth
+            current_depth = root.replace(search_path, '').count(os.sep)
+            if current_depth >= max_depth:
+                dirs.clear()  # Don't go deeper
+                continue
+                
+            # Filter out directories we want to skip
+            dirs[:] = [d for d in dirs if d not in skip_dirs and not d.startswith('.')]
+                
+            try:
+                # Search in directories if requested
+                if search_type in ["folders", "both"]:
+                    for dir_name in dirs:
+                        if count >= max_results or time.time() - start_time > timeout:
+                            break
+                        if should_include_item(dir_name, root, True):
+                            full_path = os.path.join(root, dir_name)
+                            found_items.append({
+                                "name": dir_name,
+                                "type": "folder",
+                                "path": full_path,
+                                "parent_directory": root
+                            })
+                            count += 1
+                
+                # Search in files if requested (limit to first 100 files per directory)
+                if search_type in ["files", "both"]:
+                    for file_name in files[:100]:  # Limit files per directory
+                        if count >= max_results or time.time() - start_time > timeout:
+                            break
+                        if should_include_item(file_name, root, False):
+                            full_path = os.path.join(root, file_name)
+                            try:
+                                file_size = os.path.getsize(full_path)
+                                found_items.append({
+                                    "name": file_name,
+                                    "type": "file",
+                                    "path": full_path,
+                                    "parent_directory": root,
+                                    "size_bytes": file_size
+                                })
+                                count += 1
+                            except (OSError, PermissionError):
+                                # Skip files we can't access
+                                continue
+                                
+            except (PermissionError, OSError):
+                # Skip directories we can't access
+                continue
+        
+        elapsed_time = round(time.time() - start_time, 2)
+        
+        if found_items:
+            message = f"Found {count} items matching '{search_pattern}' in {elapsed_time}s"
+            if count >= max_results:
+                message += f" (limited to {max_results} results)"
+            if elapsed_time >= timeout:
+                message += " (search timed out - try narrowing search path)"
+        else:
+            message = f"No items found matching '{search_pattern}' in {elapsed_time}s"
+        
+        return DriveSearchOutput(
+            success=True,
+            message=message,
+            found_items=found_items,
+            total_count=count,
+            search_type=search_type,
+            search_path=search_path
+        )
+        
+    except Exception as e:
+        return DriveSearchOutput(
+            success=False, 
+            message=f"Error during drive search: {str(e)}"
+        )
+
+@mcp.tool(name="find_by_extension", description="Find all files with specific extension(s) in a path.")
+def find_by_extension(
+    extensions: str, 
+    search_path: str = "C:\\Users", 
+    max_results: int = 30,
+    max_depth: int = 3
+) -> DriveSearchOutput:
+    """
+    Find all files with specific extension(s) in the specified path.
+    Args:
+        extensions (str): File extensions to search for (e.g., ".txt", ".py,.js,.html")
+        search_path (str): Root path to search in (default: "C:\\Users" for speed)
+        max_results (int): Maximum number of results (default: 30)
+        max_depth (int): Maximum directory depth (default: 3)
+    """
+    import time
+    try:
+        start_time = time.time()
+        timeout = 8.0  # 8 second timeout
+        
+        search_path = os.path.abspath(search_path)
+        if not os.path.exists(search_path):
+            return DriveSearchOutput(
+                success=False, 
+                message=f"Search path '{search_path}' does not exist"
+            )
+        
+        # Parse extensions
+        ext_list = [ext.strip().lower() for ext in extensions.split(',')]
+        # Ensure extensions start with dot
+        ext_list = [ext if ext.startswith('.') else f'.{ext}' for ext in ext_list]
+        
+        found_items = []
+        count = 0
+        
+        skip_dirs = {'System Volume Information', '$Recycle.Bin', 'Windows', 'Program Files', 
+                    'Program Files (x86)', 'AppData', 'ProgramData', '.git', 'node_modules', '__pycache__'}
+        
+        for root, dirs, files in os.walk(search_path):
+            if time.time() - start_time > timeout or count >= max_results:
+                break
+                
+            # Limit depth
+            depth = root.replace(search_path, '').count(os.sep)
+            if depth >= max_depth:
+                dirs.clear()
+                continue
+            
+            # Filter directories
+            dirs[:] = [d for d in dirs if d not in skip_dirs and not d.startswith('.')]
+                
+            try:
+                for file_name in files[:100]:  # Limit files per directory
+                    if count >= max_results or time.time() - start_time > timeout:
+                        break
+                        
+                    file_ext = os.path.splitext(file_name)[1].lower()
+                    if file_ext in ext_list:
+                        full_path = os.path.join(root, file_name)
+                        try:
+                            file_size = os.path.getsize(full_path)
+                            found_items.append({
+                                "name": file_name,
+                                "type": "file",
+                                "path": full_path,
+                                "parent_directory": root,
+                                "size_bytes": file_size,
+                                "extension": file_ext
+                            })
+                            count += 1
+                        except (OSError, PermissionError):
+                            continue
+                            
+            except (PermissionError, OSError):
+                continue
+        
+        elapsed_time = round(time.time() - start_time, 2)
+        message = f"Found {count} files with extensions {extensions} in {elapsed_time}s"
+        if count >= max_results:
+            message += f" (limited to {max_results} results)"
+        if elapsed_time >= timeout:
+            message += " (search timed out)"
+        
+        return DriveSearchOutput(
+            success=True,
+            message=message,
+            found_items=found_items,
+            total_count=count,
+            search_type="files",
+            search_path=search_path
+        )
+        
+    except Exception as e:
+        return DriveSearchOutput(
+            success=False, 
+            message=f"Error searching by extension: {str(e)}"
+        )
+
+@mcp.tool(name="find_large_files", description="Find files larger than specified size in a path.")
+def find_large_files(
+    min_size_mb: float = 100.0, 
+    search_path: str = "C:\\", 
+    max_results: int = 50
+) -> DriveSearchOutput:
+    """
+    Find files larger than the specified size in the given path.
+    Args:
+        min_size_mb (float): Minimum file size in MB (default: 100.0)
+        search_path (str): Root path to search in (default: "C:\\")
+        max_results (int): Maximum number of results (default: 50)
+    """
+    try:
+        search_path = os.path.abspath(search_path)
+        if not os.path.exists(search_path):
+            return DriveSearchOutput(
+                success=False, 
+                message=f"Search path '{search_path}' does not exist"
+            )
+        
+        min_size_bytes = int(min_size_mb * 1024 * 1024)  # Convert MB to bytes
+        found_items = []
+        count = 0
+        
+        for root, dirs, files in os.walk(search_path):
+            if count >= max_results:
+                break
+                
+            try:
+                for file_name in files:
+                    if count >= max_results:
+                        break
+                        
+                    full_path = os.path.join(root, file_name)
+                    try:
+                        file_size = os.path.getsize(full_path)
+                        if file_size >= min_size_bytes:
+                            size_mb = round(file_size / (1024 * 1024), 2)
+                            found_items.append({
+                                "name": file_name,
+                                "type": "file",
+                                "path": full_path,
+                                "parent_directory": root,
+                                "size_bytes": file_size,
+                                "size_mb": size_mb
+                            })
+                            count += 1
+                    except (OSError, PermissionError):
+                        continue
+                        
+            except (PermissionError, OSError):
+                continue
+        
+        # Sort by size (largest first)
+        found_items.sort(key=lambda x: x["size_bytes"], reverse=True)
+        
+        message = f"Found {count} files larger than {min_size_mb}MB in '{search_path}'"
+        if count >= max_results:
+            message += f" (limited to {max_results} results)"
+        
+        return DriveSearchOutput(
+            success=True,
+            message=message,
+            found_items=found_items,
+            total_count=count,
+            search_type="files",
+            search_path=search_path
+        )
+        
+    except Exception as e:
+        return DriveSearchOutput(
+            success=False, 
+            message=f"Error finding large files: {str(e)}"
+        )
+
 if __name__ == "__main__":
     mcp.run(transport="stdio")

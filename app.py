@@ -30,17 +30,24 @@ with st.sidebar:
     st.info("📋 **List Files** - Browse directory contents")
     st.info("📖 **Read Files** - View file contents") 
     st.info("🗑️ **Remove Files** - Delete files safely")
+    st.info("✏️ **Write Files** - Create or edit files")
+    st.info("⚡ **Quick Search** - Fast search in common folders")
+    st.info("🔍 **Drive Search** - Deep search with limits")
+    st.info("📊 **File Operations** - Copy, rename, backup, compare files")
     
     st.header("💡 Example Commands")
     
     st.code("List files in current directory")
-    st.code("Read the content of app.py")
-    st.code("Show files in servers folder")
+    st.code("Quick search for 'config'")
+    st.code("Find .py files in Documents")
+    st.code("Search for folders named 'project'")
+    st.code("Find large files over 50MB")
     
     st.divider()
     
     st.success("✅ Azure OpenAI Connected")
-    st.success("✅ MCP Server Ready")
+    st.success("✅ MCP Server Ready") 
+    st.success("⚡ Fast Search Available")
 
 # Initialize Azure OpenAI client and MCP tools
 @st.cache_resource
