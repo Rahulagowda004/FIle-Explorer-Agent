@@ -19,7 +19,7 @@ llm = AzureChatOpenAI(
 
 server_params = StdioServerParameters(
     command="python",
-    args=["C:/vscode/AI-development/MCP/servers/filehandler.py"],
+    args=["C:/vscode/folder-Agent/servers/filehandler.py"],
     transport="stdio",
 )
 
