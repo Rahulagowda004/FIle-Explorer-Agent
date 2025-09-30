@@ -99,7 +99,7 @@ async def get_agent_response(user_input, session_id):
                 return response['messages'][-1].content
 
 def main():
-    st.set_page_config(page_title="MCP Agent Chat", layout="wide")
+    st.set_page_config(page_title="File Explorer Agent", layout="wide")
     
     # Initialize sessions database
     init_sessions_db()
