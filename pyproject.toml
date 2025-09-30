@@ -15,4 +15,5 @@ dependencies = [
     "streamlit>=1.49.1",
     "python-dotenv>=1.0.0",
     "fastmcp>=0.1.0",
+    "aiosqlite>=0.21.0",
 ]
