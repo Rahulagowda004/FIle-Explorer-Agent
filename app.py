@@ -157,7 +157,7 @@ def main():
             st.info("No sessions yet. Create a new session to start chatting!")
     
     # Main chat interface
-    st.title("🤖 MCP Agent Assistant")
+    st.title("🤖 File Explorer Assistant")
     
     # Check if a session is selected
     if st.session_state.current_session_id is None:
