@@ -308,25 +308,6 @@ def main():
                     error_msg = f"Sorry, I encountered an error: {str(e)}"
                     st.error(error_msg)
                     st.session_state.messages[current_session].append({"role": "assistant", "content": error_msg})
-    
-    # Bottom status and quick actions
-    if st.session_state.messages[current_session]:
-        st.divider()
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.caption(f"💬 {len(st.session_state.messages[current_session])} messages")
-        
-        with col2:
-            if st.button("🧹 Clear Chat", use_container_width=True):
-                st.session_state.messages[current_session] = []
-                st.rerun()
-        
-        with col3:
-            if st.button("⏰ Get Current Time", use_container_width=True):
-                time_prompt = "What's the current date and time?"
-                st.session_state.messages[current_session].append({"role": "user", "content": time_prompt})
-                st.rerun()
-
+                 
 if __name__ == "__main__":
     main()
