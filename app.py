@@ -98,23 +98,54 @@ async def get_agent_response(user_input, session_id):
                 response = await agent.ainvoke({"messages": user_input}, config=config)
                 return response['messages'][-1].content
 
+def get_quick_commands():
+    """Return categorized quick command examples"""
+    return {
+        "📁 File Operations": [
+            "List all files in Documents folder",
+            "Create a new directory called 'Projects'",
+            "Copy readme.txt to backup folder",
+            "Rename old_file.txt to new_file.txt"
+        ],
+        "🔍 Search & Find": [
+            "Search for all .py files in current directory",
+            "Find duplicate files in Downloads folder",
+            "Search for files containing 'config' in name",
+            "Find all PDF files on C drive"
+        ],
+        "📊 File Analysis": [
+            "Get file information for document.pdf",
+            "Calculate hash for important.zip",
+            "Count lines in script.py",
+            "Compare file1.txt with file2.txt"
+        ],
+        "🛠️ Maintenance": [
+            "Clean up temporary files",
+            "Backup important.doc",
+            "Get system information",
+            "Monitor Downloads directory for changes"
+        ]
+    }
+
 def main():
-    st.set_page_config(page_title="File Explorer Agent", layout="wide")
+    st.set_page_config(
+        page_title="File Explorer Agent", 
+        page_icon="🤖",
+        layout="wide"
+    )
     
     # Initialize sessions database
     init_sessions_db()
-    
-    # Load sessions
     st.session_state.sessions = load_sessions()
     
-    # Sidebar for session management
+    # Sidebar
     with st.sidebar:
-        st.title("💬 Chat Sessions")
+        st.header("💬 Chat Sessions")
         
-        # New session button
-        if st.button("➕ New Session", type="primary", use_container_width=True):
+        # New session
+        if st.button("➕ New Chat", type="primary", use_container_width=True):
             new_session_id = str(uuid.uuid4())
-            session_name = f"Session {datetime.now().strftime('%m/%d %H:%M')}"
+            session_name = f"Chat {len(st.session_state.sessions) + 1}"
             save_session(new_session_id, session_name)
             st.session_state.sessions[new_session_id] = {
                 "name": session_name, 
@@ -126,25 +157,29 @@ def main():
         
         st.divider()
         
-        # Display sessions
+        # Session list
         if st.session_state.sessions:
             for session_id, session_data in st.session_state.sessions.items():
-                col1, col2 = st.columns([3, 1])
+                col1, col2 = st.columns([4, 1])
                 
                 with col1:
+                    is_current = session_id == st.session_state.current_session_id
+                    button_type = "primary" if is_current else "secondary"
+                    
                     if st.button(
                         session_data["name"], 
                         key=f"session_{session_id}",
-                        use_container_width=True,
-                        type="secondary" if session_id != st.session_state.current_session_id else "primary"
+                        type=button_type,
+                        use_container_width=True
                     ):
-                        st.session_state.current_session_id = session_id
-                        if session_id not in st.session_state.messages:
-                            st.session_state.messages[session_id] = []
-                        st.rerun()
+                        if not is_current:
+                            st.session_state.current_session_id = session_id
+                            if session_id not in st.session_state.messages:
+                                st.session_state.messages[session_id] = []
+                            st.rerun()
                 
                 with col2:
-                    if st.button("🗑️", key=f"delete_{session_id}", help="Delete session"):
+                    if st.button("🗑️", key=f"delete_{session_id}"):
                         delete_session(session_id)
                         if session_id in st.session_state.sessions:
                             del st.session_state.sessions[session_id]
@@ -154,39 +189,118 @@ def main():
                             st.session_state.current_session_id = None
                         st.rerun()
         else:
-            st.info("No sessions yet. Create a new session to start chatting!")
+            st.info("No chats yet. Start a new one!")
+        
+        # Quick reference
+        st.divider()
+        with st.expander("🚀 Quick Reference"):
+            st.markdown("""
+            **Available Operations:**
+            
+            📂 **File Management**
+            • List, create, copy, rename
+            • Read, write, append
+            • Backup, delete files
+            
+            🔍 **Search & Analysis**
+            • Find files & duplicates
+            • Search content
+            • File statistics & info
+            
+            🛠️ **System Tools**
+            • System information
+            • Directory monitoring
+            • Temp file cleanup
+            • File permissions
+            """)
     
-    # Main chat interface
+    # Main area
     st.title("🤖 File Explorer Assistant")
+    st.caption("Your intelligent file management companion")
     
-    # Check if a session is selected
     if st.session_state.current_session_id is None:
-        st.info("👈 Please select or create a session from the sidebar to start chatting.")
+        # Welcome state with quick commands
+        st.markdown("### Welcome! 👋")
+        st.info("🚀 Create a new chat session to start exploring and managing your files.")
+        
+        # Quick command examples
+        st.markdown("### 💡 What can I help you with?")
+        
+        quick_commands = get_quick_commands()
+        
+        # Create tabs for different categories
+        tabs = st.tabs(list(quick_commands.keys()))
+        
+        for i, (category, commands) in enumerate(quick_commands.items()):
+            with tabs[i]:
+                for cmd in commands:
+                    if st.button(f"💭 {cmd}", key=f"quick_{cmd}", use_container_width=True):
+                        # Create new session and use this command
+                        new_session_id = str(uuid.uuid4())
+                        session_name = f"Chat {len(st.session_state.sessions) + 1}"
+                        save_session(new_session_id, session_name)
+                        st.session_state.sessions[new_session_id] = {
+                            "name": session_name, 
+                            "created_at": datetime.now().isoformat()
+                        }
+                        st.session_state.current_session_id = new_session_id
+                        st.session_state.messages[new_session_id] = [
+                            {"role": "user", "content": cmd}
+                        ]
+                        st.rerun()
+        
+        # Current system info
+        st.divider()
+        col1, col2 = st.columns(2)
+        with col1:
+            st.info(f"👤 **Current User:** ITCartofficial")
+        with col2:
+            st.info(f"🕐 **Current Time:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
         return
     
     current_session = st.session_state.current_session_id
     
-    # Initialize messages for current session if not exists
+    # Initialize messages
     if current_session not in st.session_state.messages:
         st.session_state.messages[current_session] = []
     
-    # Display chat messages
-    for message in st.session_state.messages[current_session]:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    # Auto-process initial message if exists
+    if (len(st.session_state.messages[current_session]) == 1 and 
+        st.session_state.messages[current_session][0]["role"] == "user"):
+        
+        initial_prompt = st.session_state.messages[current_session][0]["content"]
+        
+        with st.chat_message("user"):
+            st.markdown(initial_prompt)
+        
+        with st.chat_message("assistant"):
+            with st.spinner("Processing your request..."):
+                try:
+                    response = asyncio.run(get_agent_response(initial_prompt, current_session))
+                    st.markdown(response)
+                    st.session_state.messages[current_session].append({"role": "assistant", "content": response})
+                except Exception as e:
+                    error_msg = f"Sorry, I encountered an error: {str(e)}"
+                    st.error(error_msg)
+                    st.session_state.messages[current_session].append({"role": "assistant", "content": error_msg})
+    else:
+        # Display existing chat messages
+        for message in st.session_state.messages[current_session]:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
     
     # Chat input
-    if prompt := st.chat_input("Type your message here..."):
-        # Add user message to chat history
+    if prompt := st.chat_input("Ask me anything about file operations..."):
+        # User message
         st.session_state.messages[current_session].append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
         
-        # Get assistant response
+        # Assistant response
         with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
+            with st.spinner("Processing..."):
                 try:
-                    # Run the async function
                     response = asyncio.run(get_agent_response(prompt, current_session))
                     st.markdown(response)
                     st.session_state.messages[current_session].append({"role": "assistant", "content": response})
@@ -195,12 +309,24 @@ def main():
                     st.error(error_msg)
                     st.session_state.messages[current_session].append({"role": "assistant", "content": error_msg})
     
-    # Session info
-    if st.session_state.current_session_id:
-        session_info = st.session_state.sessions.get(st.session_state.current_session_id, {})
-        st.sidebar.markdown(f"**Current Session:** {session_info.get('name', 'Unknown')}")
-        if session_info.get('created_at'):
-            st.sidebar.markdown(f"**Created:** {session_info['created_at']}")
+    # Bottom status and quick actions
+    if st.session_state.messages[current_session]:
+        st.divider()
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.caption(f"💬 {len(st.session_state.messages[current_session])} messages")
+        
+        with col2:
+            if st.button("🧹 Clear Chat", use_container_width=True):
+                st.session_state.messages[current_session] = []
+                st.rerun()
+        
+        with col3:
+            if st.button("⏰ Get Current Time", use_container_width=True):
+                time_prompt = "What's the current date and time?"
+                st.session_state.messages[current_session].append({"role": "user", "content": time_prompt})
+                st.rerun()
 
 if __name__ == "__main__":
     main()
