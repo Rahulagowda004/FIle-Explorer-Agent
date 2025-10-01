@@ -2,6 +2,27 @@
 
 A sophisticated AI-powered file management assistant built with Streamlit, LangChain, and MCP (Model Context Protocol). This application provides an intelligent chat interface for interacting with your file system using natural language commands.
 
+## 📸 Screenshots & Demo
+
+### Application Interface
+![Home Page](Static/HomePage1.png)
+*Main interface showing session management and chat functionality*
+
+![Home Page Extended](Static/HomePage2.png)
+*Extended view of the application interface*
+
+![Chat Interface](Static/Chat_interface.png)
+*Interactive chat interface for natural language file operations*
+
+### 🎥 Video Demo
+Check out the File Explorer Assistant in action:
+
+[![File Explorer Assistant Demo](Static/HomePage1.png)](Static/File%20Explorer%20Assistant.mp4)
+
+*Click the image above to view the demo video*
+
+> **Note**: For the best experience viewing the demo video, download the file from `Static/File Explorer Assistant.mp4`
+
 ## ✨ Features
 
 - **🗣️ Natural Language File Operations**: Interact with your file system using conversational commands
@@ -118,6 +139,11 @@ folder-Agent/
 ├── run_app.bat          # Windows batch file to start the app
 ├── servers/
 │   └── filehandler.py   # MCP server for file operations
+├── Static/              # Media assets
+│   ├── HomePage1.png    # Main interface screenshot
+│   ├── HomePage2.png    # Extended interface screenshot
+│   ├── Chat_interface.png # Chat interface screenshot
+│   └── File Explorer Assistant.mp4 # Demo video
 ├── chatbot.db           # SQLite database for chat history
 ├── sessions.db          # SQLite database for session management
 ├── .env                 # Environment variables (not tracked)
